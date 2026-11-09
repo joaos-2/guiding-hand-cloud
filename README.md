@@ -45,8 +45,7 @@ flowchart LR
       GH --> SEC["Gitleaks + Semgrep"]
       SEC --> BUILD["docker build"]
       BUILD --> TRIVY["Trivy (scan imagem)"]
-      TRIVY --> GHCR["Push imagem → GHCR"]
-      GHCR --> DEPLOY["Deploy via SSH"]
+      TRIVY --> DEPLOY["Deploy via SSH (rebuild na EC2)"]
     end
 
     subgraph AWS["AWS — EC2 (Terraform)"]
@@ -139,9 +138,8 @@ A cada `push`/`pull_request` na `main` (`.github/workflows/ci-cd.yml`):
 1. **Gitleaks** — procura segredos vazados no código e no histórico.
 2. **Semgrep** — análise estática (SAST) de JS, segurança e Dockerfile.
 3. **docker build** — constrói a imagem.
-4. **Trivy** — barra a imagem se houver vulnerabilidades `HIGH`/`CRITICAL`.
-5. **Push** da imagem no **GHCR** (só em push na `main`).
-6. **Deploy** automático via SSH na EC2 (só em push na `main`).
+4. **Trivy** — barra a imagem se houver vulnerabilidades `HIGH`/`CRITICAL` (porta de qualidade: só passa para o deploy se não houver).
+5. **Deploy** automático via SSH na EC2 (só em push na `main`): `git pull` + `docker compose up -d --build`, reconstruindo a partir do commit já escaneado.
 
 **Secrets necessários** (repositório → *Settings → Secrets and variables → Actions*):
 
@@ -149,8 +147,6 @@ A cada `push`/`pull_request` na `main` (`.github/workflows/ci-cd.yml`):
 |---|---|
 | `EC2_HOST` | IP público da EC2 |
 | `EC2_SSH_KEY` | Chave privada SSH (conteúdo do `.pem`) |
-
-> O `GITHUB_TOKEN` já é fornecido pelo Actions para publicar no GHCR — deixe o pacote do GHCR como **público** para a EC2 baixá-lo sem autenticação.
 
 ### Evidência exigida: execução barrada ✗ e corrigida ✓
 
@@ -221,7 +217,7 @@ O uso do produto **revela uma deficiência**, então é tratado como **dado pess
 | Transferência de dados | **US$ 0** (100 GB/mês grátis) | ~US$ 0 |
 | **Total aproximado** | **≈ US$ 0/mês** | **≈ US$ 9–10/mês** |
 
-> GHCR, GitHub Actions e Grafana/Prometheus (self-hosted) são gratuitos para repositório público. Lembre de `terraform destroy` ao final para não gerar custo.
+> GitHub Actions e Grafana/Prometheus (self-hosted na EC2) são gratuitos para repositório público. Lembre de `terraform destroy` ao final para não gerar custo.
 
 ---
 

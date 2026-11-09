@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: ci-cd-${{ github.ref }}
@@ -40,44 +39,23 @@ jobs:
             app/
 
   build:
-    name: Build + Trivy + Push
+    name: Build + Trivy
     runs-on: ubuntu-latest
     needs: security
-    outputs:
-      image: ${{ steps.meta.outputs.image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Define nome da imagem
-        id: meta
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
       - name: Build da imagem
-        run: docker build -t "${{ steps.meta.outputs.image }}:${{ github.sha }}" ./app
+        run: docker build -t guiding-hand-cloud:${{ github.sha }} ./app
 
       - name: Trivy (vulnerabilidades da imagem)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ steps.meta.outputs.image }}:${{ github.sha }}
+          image-ref: guiding-hand-cloud:${{ github.sha }}
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
-
-      - name: Login no GHCR
-        if: github.event_name == 'push'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push da imagem
-        if: github.event_name == 'push'
-        run: |
-          docker tag "${{ steps.meta.outputs.image }}:${{ github.sha }}" "${{ steps.meta.outputs.image }}:latest"
-          docker push "${{ steps.meta.outputs.image }}:${{ github.sha }}"
-          docker push "${{ steps.meta.outputs.image }}:latest"
 
   deploy:
     name: Deploy na AWS EC2
@@ -91,12 +69,9 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: GITHUB_SHA
           script: |
             set -euo pipefail
             cd /opt/guiding-hand
             git pull --ff-only
-            sed -i "s#^APP_IMAGE=.*#APP_IMAGE=${{ needs.build.outputs.image }}:latest#" .env
-            docker compose pull app
-            docker compose up -d
+            docker compose up -d --build
             docker image prune -f
