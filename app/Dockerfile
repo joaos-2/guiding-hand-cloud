@@ -7,11 +7,15 @@ FROM node:20-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
+RUN apk upgrade --no-cache
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
 COPY db ./db
 COPY public ./public
+
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 USER node
 
