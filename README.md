@@ -1,4 +1,4 @@
-# Guiding Hand — Cloud & DevSecOps ("Deploy Blindado")
+# Guiding Hand
 
 MVP em nuvem do **Guiding Hand**, projeto do desafio **CitizenTech** (FIAP · Global Solution 2026.2 · Engenharia de Software 4º ano · 4ES).
 
@@ -45,7 +45,7 @@ flowchart LR
       GH --> SEC["Gitleaks + Semgrep"]
       SEC --> BUILD["docker build"]
       BUILD --> TRIVY["Trivy (scan imagem)"]
-      TRIVY --> DEPLOY["Deploy via SSH (rebuild na EC2)"]
+      TRIVY --> VERIFY["Verifica /version"]
     end
 
     subgraph AWS["AWS — EC2 (Terraform)"]
@@ -56,7 +56,8 @@ flowchart LR
       GRAF["Grafana :3001"] --> PROM
     end
 
-    DEPLOY --> APP
+    GH -.EC2 puxa o main - timer 2min.-> APP
+    VERIFY -.consulta GET /version.-> APP
     CIDADAO["Cidadão / App web"] -->|HTTP :80| APP
     OCULOS["Óculos (POST /api/events)"] -->|HTTP :80| APP
     APP -->|mapa de barreiras| ZELADORIA["Zeladoria da cidade"]
@@ -112,7 +113,7 @@ curl http://localhost/api/barriers?status=all
 
 ---
 
-## ☁️ Deploy na AWS (Terraform)
+## ☁️ Deploy
 
 Pré-requisitos: conta AWS, AWS CLI configurado (`aws configure`), Terraform ≥ 1.5 e um **Key Pair** EC2 criado no console.
 
@@ -127,11 +128,9 @@ terraform apply
 
 Ao final, o Terraform imprime `app_url`, `grafana_url` e `ssh_command`. O `user_data` instala Docker, clona este repositório e sobe a stack sozinho.
 
-> **State e segredos:** `terraform.tfstate` e `*.tfvars` ficam **fora do repositório** (ver `.gitignore`). As senhas do banco e do Grafana são geradas **aleatoriamente na própria EC2** pelo `user_data` — nunca ficam no repo nem no state.
-
 ---
 
-## 🔐 Pipeline DevSecOps (GitHub Actions)
+## 🔐 Pipeline (GitHub Actions)
 
 A cada `push`/`pull_request` na `main` (`.github/workflows/ci-cd.yml`):
 
@@ -139,23 +138,25 @@ A cada `push`/`pull_request` na `main` (`.github/workflows/ci-cd.yml`):
 2. **Semgrep** — análise estática (SAST) de JS, segurança e Dockerfile.
 3. **docker build** — constrói a imagem.
 4. **Trivy** — barra a imagem se houver vulnerabilidades `HIGH`/`CRITICAL` (porta de qualidade: só passa para o deploy se não houver).
-5. **Deploy** automático via SSH na EC2 (só em push na `main`): `git pull` + `docker compose up -d --build`, reconstruindo a partir do commit já escaneado.
+5. **Deploy automático (pull-based) + verificação** (só em push na `main`): a EC2 roda um *timer* `systemd` que, a cada 2 min, busca o `main` já escaneado e faz `git pull` + `docker compose up -d --build`; o job de deploy no Actions então consulta `GET /version` da EC2 até ver o commit no ar.
+
+### Por que deploy *pull-based* (decisão de segurança)
+
+A porta SSH (22) fica **restrita ao nosso IP** (exigência da rubrica), então os runners do GitHub não entram por SSH — e **não queremos** abrir SSH para a internet nem guardar credenciais da AWS no CI. Por isso a EC2 **puxa** o código em vez de o CI **empurrar**: o segredo nunca sai da nuvem e a porta de admin continua fechada. Essa é a mesma ideia de GitOps/pull deployment.
 
 **Secrets necessários** (repositório → *Settings → Secrets and variables → Actions*):
 
 | Secret | Para quê |
 |---|---|
-| `EC2_HOST` | IP público da EC2 |
-| `EC2_SSH_KEY` | Chave privada SSH (conteúdo do `.pem`) |
+| `EC2_HOST` | IP público da EC2 (usado pelo job de verificação do deploy) |
+| `EC2_SSH_KEY` | Chave privada para acesso SSH **administrativo humano** (não usada pelo CI) |
 
-### Evidência exigida: execução barrada ✗ e corrigida ✓
+### Porta de qualidade: barrada ✗ e corrigida ✓
 
-Para demonstrar o pipeline barrando um problema (ver `docs/RELATORIO.md`):
+A porta de qualidade bloqueia o deploy quando encontra um problema:
 
-- **Segredo (Gitleaks):** faça um commit com uma chave fake (ex.: `AWS_SECRET_ACCESS_KEY=AKIA...`) → pipeline **falha**. Remova o segredo → pipeline **passa**.
-- **Vulnerabilidade (Trivy/Semgrep):** troque a base para uma imagem antiga (ex.: `node:18.0-alpine`) ou escreva uma query SQL concatenada → **falha**. Volte para `node:20-alpine` / query parametrizada → **passa**.
-
-Tire print das duas execuções (vermelha e verde) para o PDF.
+- **Segredo (Gitleaks):** um commit com uma chave exposta (ex.: `AWS_SECRET_ACCESS_KEY=AKIA...`) faz o pipeline **falhar**; sem o segredo, **passa**.
+- **Vulnerabilidade (Trivy/Semgrep):** uma base antiga (ex.: `node:18.0-alpine`) ou uma query SQL concatenada fazem o pipeline **falhar**; com `node:20-alpine` e query parametrizada, **passa**.
 
 ---
 
@@ -172,7 +173,7 @@ Dashboard provisionado automaticamente no Grafana (*Guiding Hand — 4 Métricas
 
 **Alertas** (`monitoring/alert.rules.yml`): `HighErrorRate`, `HighRequestLatencyP95`, `AppDown`.
 
-### Como disparar um alerta (para o print)
+### Como disparar um alerta
 
 ```bash
 docker compose stop db        # derruba o banco
@@ -217,7 +218,7 @@ O uso do produto **revela uma deficiência**, então é tratado como **dado pess
 | Transferência de dados | **US$ 0** (100 GB/mês grátis) | ~US$ 0 |
 | **Total aproximado** | **≈ US$ 0/mês** | **≈ US$ 9–10/mês** |
 
-> GitHub Actions e Grafana/Prometheus (self-hosted na EC2) são gratuitos para repositório público. Lembre de `terraform destroy` ao final para não gerar custo.
+> GitHub Actions é gratuito para repositórios públicos; Grafana e Prometheus são self-hosted na EC2, sem custo adicional. Para encerrar a infraestrutura e cessar os custos da AWS, execute `terraform destroy`.
 
 ---
 
@@ -240,7 +241,6 @@ O uso do produto **revela uma deficiência**, então é tratado como **dado pess
 │   └── Dockerfile           # multi-stage, não-root
 ├── infra/                   # Terraform (AWS EC2 + Security Group)
 ├── monitoring/              # Prometheus + regras de alerta + Grafana
-├── .github/workflows/       # Pipeline CI/CD DevSecOps
-├── docker-compose.yml       # Stack completa
-└── docs/RELATORIO.md        # Esqueleto do PDF de entrega
+├── .github/workflows/       # Pipeline CI/CD
+└── docker-compose.yml       # Stack completa
 ```

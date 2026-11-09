@@ -58,20 +58,19 @@ jobs:
           ignore-unfixed: true
 
   deploy:
-    name: Deploy na AWS EC2
+    name: Deploy automatico (pull-based) + verificacao
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'push'
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            set -euo pipefail
-            cd /opt/guiding-hand
-            git pull --ff-only
-            docker compose up -d --build
-            docker image prune -f
+      - name: Aguarda a EC2 puxar o main e confere a versao no ar
+        run: |
+          SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "Versao esperada no ar: $SHORT"
+          for i in $(seq 1 40); do
+            got=$(curl -s --max-time 5 "http://${{ secrets.EC2_HOST }}/version" | sed -n 's/.*"sha":"\([^"]*\)".*/\1/p' || true)
+            echo "tentativa $i: versao na EC2 = '$got'"
+            if [ "$got" = "$SHORT" ]; then echo "Deploy confirmado na EC2 (versao $SHORT no ar)"; exit 0; fi
+            sleep 15
+          done
+          echo "Timeout: a versao $SHORT nao apareceu na EC2"; exit 1

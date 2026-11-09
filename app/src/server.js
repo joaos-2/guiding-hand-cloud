@@ -34,6 +34,10 @@ app.get('/metrics', async (_req, res) => {
   res.end(await register.metrics());
 });
 
+app.get('/version', (_req, res) => {
+  res.json({ sha: process.env.APP_SHA || 'dev' });
+});
+
 app.use((err, _req, res, _next) => {
   console.error('Erro nao tratado:', err.message);
   res.status(500).json({ error: 'Erro interno' });

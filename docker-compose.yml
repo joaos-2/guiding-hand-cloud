@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       PORT: 3000
+      APP_SHA: ${APP_SHA:-dev}
     ports:
       - "80:3000"
     depends_on:
