@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Segredos e ambiente (NUNCA commitar)
+.env
+*.env
+!.env.example
+
+# Terraform - state e variaveis ficam FORA do repo (exigencia da rubrica)
+infra/.terraform/
+infra/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+
+# Chaves / credenciais
+*.pem
+*.key
+id_rsa*
+aws_credentials
+
+# SO / editor
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,29 @@
+groups:
+  - name: guiding-hand-golden-signals
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status_code=~"5.."}[1m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxa de erros 5xx acima de zero"
+          description: "A API esta retornando erros 5xx ha mais de 1 minuto."
+
+      - alert: HighRequestLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia p95 alta"
+          description: "O p95 das requisicoes esta acima de 1s por mais de 5 minutos."
+
+      - alert: AppDown
+        expr: up{job="guiding-hand-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Aplicacao fora do ar"
+          description: "O Prometheus nao consegue coletar metricas da aplicacao ha 1 minuto."

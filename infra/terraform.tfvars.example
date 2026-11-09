@@ -1,0 +1,14 @@
+# Copie para terraform.tfvars e preencha. O arquivo .tfvars fica FORA do repo (.gitignore).
+
+aws_region    = "us-east-1"
+instance_type = "t3.micro"
+
+# Nome do Key Pair EC2 que voce criou no console da AWS (EC2 > Key Pairs)
+key_name = "guiding-hand-key"
+
+# Seu IP publico em CIDR /32. Descubra com:  curl -s https://checkip.amazonaws.com
+# NUNCA use 0.0.0.0/0 aqui (o Terraform bloqueia esse valor).
+admin_cidr = "SEU.IP.PUBLICO.AQUI/32"
+
+# Repositorio publico (o user_data clona para subir a stack)
+repo_url = "https://github.com/SEU_USUARIO/guiding-hand-cloud.git"

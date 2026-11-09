@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guiding Hand - Planejar trajeto</title>
+  <style>
+    :root { --fg: #11181c; --bg: #ffffff; --accent: #0b5cad; --muted: #4a5568; --border: #c9ced6; }
+    @media (prefers-color-scheme: dark) {
+      :root { --fg: #e7ecf2; --bg: #0f1419; --accent: #6cb4ff; --muted: #a7b0bd; --border: #2b333d; }
+    }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--fg);
+           background: var(--bg); margin: 0; line-height: 1.6; font-size: 18px; }
+    .skip { position: absolute; left: -999px; top: 0; background: var(--accent); color: #fff; padding: .5rem 1rem; }
+    .skip:focus { left: 0; z-index: 10; }
+    main { max-width: 760px; margin: 0 auto; padding: 1rem 16px 4rem; }
+    h1 { font-size: 1.6rem; } h2 { font-size: 1.25rem; margin-top: 2rem; }
+    label { display: block; font-weight: 600; margin: 1rem 0 .25rem; }
+    input, button { font-size: 1rem; padding: .7rem .8rem; border-radius: 8px; border: 1px solid var(--border); }
+    input { width: 100%; background: var(--bg); color: var(--fg); }
+    button { background: var(--accent); color: #fff; border: none; cursor: pointer; margin-top: 1rem; font-weight: 600; }
+    button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .muted { color: var(--muted); }
+    ul { padding-left: 1.2rem; } li { margin: .3rem 0; }
+    .card { border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+    .result[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#conteudo">Pular para o conteudo</a>
+  <main id="conteudo">
+    <h1>Guiding Hand</h1>
+    <p class="muted">Planeje seu trajeto a pe. As orientacoes sao lidas pelo leitor de tela e,
+       no uso real, chegam por voz e vibracao nos oculos. O celular pode ficar guardado.</p>
+
+    <h2>Planejar trajeto</h2>
+    <form id="form-rota" aria-describedby="ajuda-rota">
+      <p id="ajuda-rota" class="muted">Informe de onde voce sai e para onde quer ir.</p>
+      <label for="from">Origem</label>
+      <input id="from" name="from" type="text" autocomplete="off" required aria-required="true" placeholder="Ex.: Pca da Se" />
+      <label for="to">Destino</label>
+      <input id="to" name="to" type="text" autocomplete="off" required aria-required="true" placeholder="Ex.: Estacao Luz" />
+      <button type="submit">Traçar trajeto</button>
+    </form>
+
+    <section class="result card" id="resultado" hidden aria-labelledby="h-resultado">
+      <h2 id="h-resultado">Trajeto</h2>
+      <ol id="passos"></ol>
+    </section>
+
+    <h2>Mapa de barreiras confirmadas</h2>
+    <p class="muted">Obstaculos fixos relatados por varios usuarios. Alimentam a zeladoria da cidade.</p>
+    <div id="barreiras" aria-live="polite" role="status">Carregando barreiras...</div>
+  </main>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+
+    async function carregarBarreiras() {
+      const alvo = $('#barreiras');
+      try {
+        const r = await fetch('/api/barriers?status=confirmed');
+        const data = await r.json();
+        if (!data.barriers.length) { alvo.textContent = 'Nenhuma barreira confirmada ainda.'; return; }
+        const ul = document.createElement('ul');
+        for (const b of data.barriers) {
+          const li = document.createElement('li');
+          li.textContent = `${b.obstacle} (aprox. ${b.lat}, ${b.lng}) - ${b.confirmations} confirmacoes`;
+          ul.appendChild(li);
+        }
+        alvo.replaceChildren(ul);
+      } catch {
+        alvo.textContent = 'Nao foi possivel carregar as barreiras agora.';
+      }
+    }
+
+    $('#form-rota').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const from = $('#from').value.trim();
+      const to = $('#to').value.trim();
+      const r = await fetch(`/api/route?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      const data = await r.json();
+      const ol = $('#passos');
+      ol.replaceChildren(...(data.steps || []).map((s) => {
+        const li = document.createElement('li'); li.textContent = s; return li;
+      }));
+      $('#resultado').hidden = false;
+      $('#resultado').focus?.();
+    });
+
+    carregarBarreiras();
+  </script>
+</body>
+</html>
