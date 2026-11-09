@@ -29,7 +29,7 @@ O Guiding Hand é um par de óculos inteligentes que ajuda pessoas cegas ou com 
 | **Nuvem / IaC** | AWS EC2 provisionada por Terraform |
 | **CI/CD** | GitHub Actions (build, Gitleaks, Semgrep, Trivy, deploy automático) |
 | **Observabilidade** | Prometheus + Grafana (4 métricas de ouro) + Alertas |
-| **URL pública** | `http://<IP-DA-EC2>` *(preencher após o deploy)* |
+| **URL pública** | http://3.90.210.154 |
 
 ---
 

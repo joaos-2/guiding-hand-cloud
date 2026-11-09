@@ -57,7 +57,7 @@ jobs:
         run: docker build -t "${{ steps.meta.outputs.image }}:${{ github.sha }}" ./app
 
       - name: Trivy (vulnerabilidades da imagem)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.meta.outputs.image }}:${{ github.sha }}
           severity: HIGH,CRITICAL
